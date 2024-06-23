@@ -18,13 +18,6 @@ struct ReciprocalEnum {
 // }
 struct ReciprocalField(TokenStream);
 
-pub fn reciprocal_enum_try_impl(item: TokenStream) -> deluxe::Result<TokenStream> {
-
-
-
-    todo!()
-}
-
 pub fn reciprocal_enum_impl(item: TokenStream, try_implementation: bool) -> deluxe::Result<TokenStream> {
     let mut ast: DeriveInput = syn::parse2(item)?;
     let meta: ReciprocalEnum = deluxe::extract_attributes(&mut ast)?;

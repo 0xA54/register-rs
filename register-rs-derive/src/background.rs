@@ -10,7 +10,7 @@ pub fn common_macro_processing<'a>(item: TokenStream) -> deluxe::Result<(StructM
     
     let register_meta: RegisterStructAttributes = deluxe::extract_attributes(&mut ast)?;
     let ident = ast.ident.clone();
-    let endian = Endian::parse(register_meta.endian.as_str()).ok_or_else(|| syn::Error::new_spanned(&ast.ident, "Must specify `endian = \"big\" | \"small\"`"))?;
+    let endian = Endian::parse(register_meta.endian.as_str()).ok_or_else(|| syn::Error::new_spanned(&ast.ident, "Must specify `endian = \"big\" | \"little\"`"))?;
     // let ast_generics: AstGenerics = ast.generics.clone().split_for_impl();
     // let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
     
@@ -106,10 +106,11 @@ impl BitRange {
         }
     }
 
-    fn norm(&self, word_size: usize) -> Self {
+    /// Applies `|i| => i % word_length_bits` to each element
+    fn norm(&self, word_length_bits: usize) -> Self {
         match *self {
-            Self::Bit(start) => Self::Bit(start % word_size),
-            Self::Bits((start, end)) => Self::Bits((start % word_size, end % word_size)),
+            Self::Bit(start) => Self::Bit(start % word_length_bits),
+            Self::Bits((start, end)) => Self::Bits((start % word_length_bits, end % word_length_bits)),
         }
     }
 }
@@ -127,24 +128,26 @@ pub fn unpack_bits_read(bits: BitRange) -> TokenStream {
 /// Generate [`TokenStream`] for [`BitRange`]
 pub fn unpack_bits_set(bits: BitRange, token: &Ident) -> TokenStream {
     match bits { 
-        BitRange::Bit(bit_idx) => quote! { set_bit(#bit_idx, self.#token.try_into()?) },
+        BitRange::Bit(bit_idx) => quote! { set_bit(#bit_idx, self.#token.clone().try_into()?) },
         BitRange::Bits((bits_start, bits_end)) => {
-            quote! { set_bits(#bits_start..=#bits_end, self.#token.try_into()?) }
+            quote! { set_bits(#bits_start..=#bits_end, self.#token.clone().try_into()?) }
         }
     }
 }
 
-pub fn relocate_bits(endian: Endian, bits: BitRange, word_size: usize, length: usize) -> (usize, BitRange) {
+pub fn relocate_bits(endian: Endian, bits: BitRange, word_length_bits: usize, length: usize) -> (usize, BitRange) {
     match endian {
-        Endian::Big => {
-            let word_idx = bits.start() / word_size;
-            let bits = bits.norm(word_size);
+        Endian::Little => {
+            // Works so long as the bit index doesn't cross word boundaries
+            // i.e. `5..10` won't work for `u8` since the boundary is at `8`
+            let word_idx = bits.start() / word_length_bits;
+            let bits = bits.norm(word_length_bits);
 
             (word_idx, bits)
         }
-        Endian::Little => {
-            let bits = bits.norm(word_size);
-            let word_idx = (length - (bits.end() + 1)) / word_size;
+        Endian::Big => {
+            let bits = bits.norm(word_length_bits);
+            let word_idx = ((length * word_length_bits) - (bits.end() + 1)) / word_length_bits;
 
             (word_idx, bits)
         }
@@ -160,7 +163,7 @@ struct RegisterStructAttributes {
     word: String,
     // #[deluxe(default = "RO".to_string())]
     // rw: String
-    #[deluxe(default = "big".into())]
+    #[deluxe(default = "little".into())] // Using little endian because its less numbers when parsing
     endian: String,
     #[deluxe(default = None)]
     write_fn: Option<TokenStream>,
