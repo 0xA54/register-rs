@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::{quote, format_ident};
-use syn::DeriveInput;
+use syn::{DeriveInput, Visibility, Type};
 
 use super::*;
 
@@ -17,12 +17,12 @@ pub fn common_macro_processing<'a>(item: TokenStream) -> deluxe::Result<(StructM
     // let where_clause = where_clause.map(|inner| inner.clone());
     // Parse the structs inner attributes
     let attrs = if let syn::Data::Struct(s) = &mut ast.data {
-        let attrs: Result<Vec<(proc_macro2::Ident, RegisterFieldAttribute)>, syn::Error> = s.fields.iter_mut().map(| field | {
+        let attrs: Result<Vec<(proc_macro2::Ident, RegisterFieldAttribute, Visibility, Type)>, syn::Error> = s.fields.iter_mut().map(| field | {
             // let field_ident = field.ident.clone().unwrap().to_token_stream();
             let ident = field.ident.clone().unwrap();
             let attr: RegisterFieldAttribute = deluxe::extract_attributes(field)?;
 
-            Ok((ident, attr))
+            Ok((ident, attr, field.vis.clone(), field.ty.clone()))
         }).collect();
 
         Ok(attrs?)
@@ -30,7 +30,7 @@ pub fn common_macro_processing<'a>(item: TokenStream) -> deluxe::Result<(StructM
         Err(syn::Error::new_spanned(&ast, "derive(Register) is only supported on type `struct`"))
     }?;
 
-    let field_attrs: Result<Vec<ParsedRegisterFieldAttribute>, syn::Error> = attrs.iter().map(|(ident, attr)| {
+    let field_attrs: Result<Vec<ParsedRegisterFieldAttribute>, syn::Error> = attrs.iter().map(|(ident, attr, vis, r#type)| {
         let bits = match (&attr.bit, &attr.bits) {
             (Some(bit), None) => { 
                 let parsed: usize = bit.parse().map_err(|_| syn::Error::new_spanned(ident, "Unable to parse number"))?;
@@ -57,6 +57,8 @@ pub fn common_macro_processing<'a>(item: TokenStream) -> deluxe::Result<(StructM
             reset: attr.reset.clone(),
             ident: ident.clone(),
             endian,
+            vis: vis.clone(),
+            ty: r#type.clone()
         })
     }).collect();
 
@@ -186,6 +188,8 @@ pub struct ParsedRegisterFieldAttribute {
     pub bits: BitRange,
     pub ident: Ident,
     pub endian: Endian,
+    pub vis: Visibility,
+    pub ty: Type
 }
 
 /// Metadata for the struct
