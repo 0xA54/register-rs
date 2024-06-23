@@ -1,0 +1,8 @@
+[package]
+name = "register-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+register-rs-derive = { path = "register-rs-derive" }
+intbits = "0.2.0"
