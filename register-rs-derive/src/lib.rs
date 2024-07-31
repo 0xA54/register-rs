@@ -3,7 +3,7 @@ use std::ops::RangeBounds;
 use deluxe::extract_attributes;
 use proc_macro2::{TokenStream, Ident};
 use quote::{quote, ToTokens, format_ident};
-use syn::{DeriveInput, Lit, RangeLimits, token::Paren, ImplGenerics, TypeGenerics, WhereClause, Generics, Visibility};
+use syn::{DeriveInput, Lit, RangeLimits, token::{Paren, Pub}, ImplGenerics, TypeGenerics, WhereClause, Generics, Visibility};
 
 use deluxe::ParseMetaItem;
 
@@ -126,7 +126,7 @@ fn register_impl(meta: StructMetadata, field_attrs: Vec<ParsedRegisterFieldAttri
     }
 }
 
-fn new_impl(meta: StructMetadata, field_attrs: Vec<ParsedRegisterFieldAttribute>) -> TokenStream {
+fn new_base_impl(meta: StructMetadata, field_attrs: Vec<ParsedRegisterFieldAttribute>, expand_private: bool) -> TokenStream {
     let (struct_ident, address, length, word_type, _endian, ast_generics, _, _) = meta;
     let ( impl_generics, type_generics, where_clause ) = ast_generics.split_for_impl();
 
@@ -137,7 +137,14 @@ fn new_impl(meta: StructMetadata, field_attrs: Vec<ParsedRegisterFieldAttribute>
     let mut has_no_private = true;
 
     for field in field_attrs {
-        if let Visibility::Public(_) = field.vis {
+        // Weeee ugly hack
+        let include_attr = match (field.vis, expand_private) {
+            (Visibility::Public(_), _) => true,
+            (_, true) => true,
+            _ => false
+        };
+
+        if include_attr {
             // ident: type
             let ident = field.ident;
             let ty = field.ty;
@@ -160,9 +167,15 @@ fn new_impl(meta: StructMetadata, field_attrs: Vec<ParsedRegisterFieldAttribute>
         }
     };
 
+    let fn_name = if expand_private {
+        quote! { new_expanded }
+    } else {
+        quote! { new }
+    };
+
     let new_impl_tokens = quote! {
         impl #impl_generics #struct_ident #type_generics #where_clause {
-            pub fn new(#(#pub_fields_sig),*) -> Self {
+            pub fn #fn_name(#(#pub_fields_sig),*) -> Self {
                 Self {
                     #(#pub_fields)*
                     #default_impl
@@ -180,6 +193,14 @@ fn new_impl(meta: StructMetadata, field_attrs: Vec<ParsedRegisterFieldAttribute>
     //         }
     //     }
     // }
+}
+
+fn new_impl(meta: StructMetadata, field_attrs: Vec<ParsedRegisterFieldAttribute>) -> TokenStream {
+    new_base_impl(meta, field_attrs, false)
+}
+
+fn new_priv_expanded(meta: StructMetadata, field_attrs: Vec<ParsedRegisterFieldAttribute>) -> TokenStream {
+    new_base_impl(meta, field_attrs, true)
 }
 
 type FnImpl = fn(StructMetadata, Vec<ParsedRegisterFieldAttribute>) -> TokenStream;
@@ -211,6 +232,11 @@ pub fn writeable_register_derive_macro(item: proc_macro::TokenStream) -> proc_ma
 #[proc_macro_derive(New)]
 pub fn new_derive_macro(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     wrapped_macro_processing(item, new_impl)
+}
+
+#[proc_macro_derive(NewExpandedPrivate)]
+pub fn new_expand_derive_macro(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    wrapped_macro_processing(item, new_priv_expanded)
 }
 
 #[proc_macro_derive(Valued, attributes(valued))]

@@ -1,6 +1,8 @@
+#![no_std]
 #![feature(generic_const_exprs)]
 
-use std::convert::Infallible;
+// use std::convert::Infallible;
+use core::convert::Infallible;
 
 pub use register_rs_derive::*;
 pub use intbits::*;
