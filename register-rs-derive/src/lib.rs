@@ -25,7 +25,7 @@ fn readable_register_impl(meta: StructMetadata, field_attrs: Vec<ParsedRegisterF
         let bit_token = unpack_bits_read(bits);
         
         quote!{
-            #ident: buffer[#word_idx].#bit_token.try_into().unwrap() // TODO: Infaliable error type be problematic for throwing error upstream :(
+            #ident: buffer[#word_idx].#bit_token.try_into()? // TODO: Infaliable error type be problematic for throwing error upstream :(
         }
     }).collect();
 
