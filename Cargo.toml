@@ -1,8 +1,16 @@
 [package]
 name = "register-rs"
-version = "0.1.0"
+description = "A framework for building ergonomic embedded drivers"
+version = "0.2.0"
 edition = "2021"
+repository = "https://github.com/0xA54/register-rs"
+license = "MIT"
+keywords = ["embedded"]
 
 [dependencies]
 register-rs-derive = { path = "register-rs-derive" }
-intbits = "0.2.0"
+# intbits = "0.2.0"
+
+[features]
+defmt_3 = []
+nightly = []
